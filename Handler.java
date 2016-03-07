@@ -20,7 +20,7 @@ abstract class Handler {
 	static boolean _DEBUG = true;
 	static int reqCount = 0;
 	int overload = 1000;
-	
+
 	String WWW_ROOT;
 	Socket connSocket;
 	ServerSocket welcome;
@@ -36,7 +36,7 @@ abstract class Handler {
 	boolean mobile = false;
 	public Date modifiedDate;
 	int connNum;
-	
+
 	public Handler(Socket connectionSocket, String WWW_ROOT, HashMap<String, filePiece> Cache) throws Exception {
 		reqCount++;
 		this.WWW_ROOT = WWW_ROOT;
@@ -49,9 +49,10 @@ abstract class Handler {
 		this.WWW_ROOT = WWW_ROOT;
 		this.welcome = listenSocket;
 		this.Cache = Cache;
-		}
+	}
 
-	public Handler(Vector<Socket> connSockPool, ServerSocket listenSocket, String WWW_ROOT, HashMap<String, filePiece> Cache) throws Exception {
+	public Handler(Vector<Socket> connSockPool, ServerSocket listenSocket, String WWW_ROOT,
+			HashMap<String, filePiece> Cache) throws Exception {
 		this.pool = connSockPool;
 		this.WWW_ROOT = WWW_ROOT;
 		this.welcome = listenSocket;
@@ -73,13 +74,8 @@ abstract class Handler {
 					Process p = pb.start();
 					outputCGIResult(p.getInputStream());
 				} else {
-					DEBUG("CHECKPOINT 1");
 					outputResponseHeader();
-
-					DEBUG("CHECKPOINT 2");
 					outputResponseBody();
-
-					DEBUG("CHECKPOINT 3");
 				}
 			} else {
 				DEBUG("NULL FILE");// dod not handle error
@@ -131,12 +127,12 @@ abstract class Handler {
 			dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
 			this.modifiedDate = dateFormat.parse(time);
 		}
-		
+
 		if (urlName.equals("load")) {
-			//this is a heart beat request from load balancer
+			// this is a heart beat request from load balancer
 			if (this.connNum > overload) {
 				outputError(503, "Overloading");
-			}else {
+			} else {
 				outputError(200, "Success");
 			}
 			return;
@@ -148,24 +144,39 @@ abstract class Handler {
 			this.runnable = true;
 		}
 
-		// debugging
-		if (_DEBUG) {
-			String line = inFromClient.readLine();
-			while (!line.equals("")) {
-				DEBUG("Header: " + line);
-				line = inFromClient.readLine();
+		if (urlName.endsWith("/") == true) {
+			if (mobile == true) {
+				urlName = "index_m.html";
+			} else {
+				urlName = "index.html";
 			}
 		}
 
 		// map to file name
 		fileName = WWW_ROOT + urlName;
 		DEBUG("Map to File name: " + fileName);
-
 		fileInfo = new File(fileName);
-		if (!fileInfo.isFile()) {
-			outputError(404, "Not Found");
-			System.out.println("404!");
+
+		if (!fileInfo.exists()) {
+			if (mobile == true && urlName.equals("index_m.html")) {
+				fileName = WWW_ROOT + "index.html";
+				fileInfo = new File(fileName);
+				if (!fileInfo.exists()) {
+					outputError(404, "Not Found");
+				}
+			} else {
+				outputError(404, "Not Found");
+			}
 			fileInfo = null;
+			return;
+		}
+		
+		if (modifiedDate != null) {
+			if (fileInfo.lastModified() < modifiedDate.getTime()) {
+				outputError(304, "Not Modified");
+				fileInfo = null;
+				return;
+			}
 		}
 
 	} // end mapURL2file
@@ -185,9 +196,9 @@ abstract class Handler {
 	}
 
 	protected void outputResponseBody() throws Exception {
-		System.out.println("Cache size: "+ Cache.keySet().size());
-		//DEBUG("Cache size " + Cache.keySet().size());
-		
+		System.out.println("Cache size: " + Cache.keySet().size());
+		// DEBUG("Cache size " + Cache.keySet().size());
+
 		int numOfBytes = (int) fileInfo.length();
 		outToClient.writeBytes("Content-Length: " + numOfBytes + "\r\n");
 		outToClient.writeBytes("\r\n");
@@ -207,7 +218,7 @@ abstract class Handler {
 		}
 	}
 
-	private void outputCGIResult(InputStream inFromProgram) throws Exception {
+	protected void outputCGIResult(InputStream inFromProgram) throws Exception {
 		byte[] buf = new byte[10000];
 		int bufLength = inFromProgram.read(buf);
 		inFromProgram.close();
@@ -233,7 +244,8 @@ abstract class Handler {
 
 class SequentialHandler extends Handler {
 
-	public SequentialHandler(Socket connectionSocket, String WWW_ROOT, HashMap<String, filePiece> Cache) throws Exception {
+	public SequentialHandler(Socket connectionSocket, String WWW_ROOT, HashMap<String, filePiece> Cache)
+			throws Exception {
 		super(connectionSocket, WWW_ROOT, Cache);
 		// TODO Auto-generated constructor stub
 	}
@@ -242,7 +254,8 @@ class SequentialHandler extends Handler {
 
 class MultiThreadHandler extends Handler implements Runnable {
 
-	public MultiThreadHandler(Socket connectionSocket, String WWW_ROOT, HashMap<String, filePiece> Cache) throws Exception {
+	public MultiThreadHandler(Socket connectionSocket, String WWW_ROOT, HashMap<String, filePiece> Cache)
+			throws Exception {
 		super(connectionSocket, WWW_ROOT, Cache);
 		// TODO Auto-generated constructor stub
 	}
@@ -256,7 +269,8 @@ class MultiThreadHandler extends Handler implements Runnable {
 
 class ThreadPoolWithCompetingSocketHandler extends Handler implements Runnable {
 
-	public ThreadPoolWithCompetingSocketHandler(ServerSocket listenSocket, String WWW_ROOT,HashMap<String, filePiece> Cache) throws Exception {
+	public ThreadPoolWithCompetingSocketHandler(ServerSocket listenSocket, String WWW_ROOT,
+			HashMap<String, filePiece> Cache) throws Exception {
 		super(listenSocket, WWW_ROOT, Cache);
 		// TODO Auto-generated constructor stub
 	}
@@ -266,7 +280,9 @@ class ThreadPoolWithCompetingSocketHandler extends Handler implements Runnable {
 		// TODO Auto-generated method stub
 		try {
 			while (true) {
-				connSocket = welcome.accept();
+				synchronized (welcome) {
+					connSocket = welcome.accept();
+				}
 				processRequest();
 				connSocket.close();
 			} // end of while
@@ -280,8 +296,8 @@ class ThreadPoolWithCompetingSocketHandler extends Handler implements Runnable {
 
 class ThreadPoolWithBusyWaitingHandler extends Handler implements Runnable {
 
-	public ThreadPoolWithBusyWaitingHandler(Vector<Socket> connSockPool, ServerSocket listenSocket, String WWW_ROOT,HashMap<String, filePiece> Cache)
-			throws Exception {
+	public ThreadPoolWithBusyWaitingHandler(Vector<Socket> connSockPool, ServerSocket listenSocket, String WWW_ROOT,
+			HashMap<String, filePiece> Cache) throws Exception {
 		super(connSockPool, listenSocket, WWW_ROOT, Cache);
 		// TODO Auto-generated constructor stub
 	}
@@ -308,8 +324,8 @@ class ThreadPoolWithBusyWaitingHandler extends Handler implements Runnable {
 }
 
 class ThreadPoolWithSuspensionHandler extends Handler implements Runnable {
-	public ThreadPoolWithSuspensionHandler(Vector<Socket> connSockPool, ServerSocket listenSocket, String WWW_ROOT, HashMap<String, filePiece> Cache)
-			throws Exception {
+	public ThreadPoolWithSuspensionHandler(Vector<Socket> connSockPool, ServerSocket listenSocket, String WWW_ROOT,
+			HashMap<String, filePiece> Cache) throws Exception {
 		super(connSockPool, listenSocket, WWW_ROOT, Cache);
 		// TODO Auto-generated constructor stub
 	}

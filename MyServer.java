@@ -2,6 +2,10 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
+class serverInfo{
+	int currentNum;
+}
+
 abstract class MyServer {
 	public static int serverPort = 6789;
 	public static String WWW_ROOT = "/Users/ladyfeline/Desktop/";
@@ -91,17 +95,19 @@ class ThreadPoolWithCompetingSocketServer extends MyServer{
 		ServerSocket listenSocket = new ServerSocket(serverPort);
 		System.out.println("server listening at: " + listenSocket);
 		System.out.println("server www root: " + WWW_ROOT);
+		
 		Thread[] threads = new Thread[numberOfThreads];
 		ThreadPoolWithCompetingSocketHandler[] handlers = new ThreadPoolWithCompetingSocketHandler[numberOfThreads];
+		
 		for (int i = 0; i < numberOfThreads; i++){
 			try {
 				handlers[i] = new ThreadPoolWithCompetingSocketHandler(listenSocket, WWW_ROOT, Cache);
+				threads[i] = new Thread(handlers[i]);
+				threads[i].start();
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			threads[i] = new Thread(handlers[i]);
-			threads[i].start();
 		}
 	}
 }

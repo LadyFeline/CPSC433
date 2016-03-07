@@ -11,7 +11,6 @@ public class MixedServer {
 	public static boolean _DEBUG = false;
 	
 	public static void main(String args[]) throws Exception {
-
 		// see if we want a different root
 		if (args.length >= 2)
 			config_file = args[1];
@@ -49,9 +48,22 @@ public class MixedServer {
         
         // Close files.
         bufferedReader.close();  
-
-        // 1, 4 done  // 2,3,5 stop early
-        ThreadPoolWithSuspensionServer test = new ThreadPoolWithSuspensionServer(serverPort, WWW_ROOT, numberOfThreads);
+        
+        //1
+        //SequentialServer test = new SequentialServer(serverPort, WWW_ROOT, numberOfThreads);
+        
+        //2
+        //MultiThreadServer test = new MultiThreadServer(serverPort, WWW_ROOT, numberOfThreads);
+        
+        //3 
+        ThreadPoolWithCompetingSocketServer test = new ThreadPoolWithCompetingSocketServer(serverPort, WWW_ROOT, numberOfThreads);
+        
+        //4
+        //ThreadPoolWithBusyWaitingServer test = new ThreadPoolWithBusyWaitingServer(serverPort, WWW_ROOT, numberOfThreads);
+        
+        //5
+        //ThreadPoolWithSuspensionServer test5 = new ThreadPoolWithSuspensionServer(serverPort, WWW_ROOT, numberOfThreads);
+        
 		test.run();
 		
 	} // end of main
